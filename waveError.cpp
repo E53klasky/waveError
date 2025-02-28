@@ -27,12 +27,66 @@
 // and write it out
 
 
-void reader()
+std::vector<double> reader(const std::string& bp_file_path)
 {
 
+        std::cout<<"DEBUG: Starting to read in U_data" <<std::endl;
 
-    // I will read u_data in here
+        adios2::ADIOS adios;
+        auto inIO = adios.DeclareIO("Reader");
+        inIO.SetEngine("BP");
 
+        adios2::Engine reader = inIO.Open(bp_file_path, adios2::Mode::Read);
+
+
+        if (!reader) {
+        std::cerr << "ERROR: Failed to open BP file: " << bp_file_path << std::endl;
+        return std::vector<double>();
+        }
+
+        std::cout<<"DEBUG:: Turning the reader engine on" << std::endl;
+        std::vector<double> u_data;
+        adios2::Variable<double> var_udata;
+
+        int stepCounter = 0;
+        while(true)
+        {
+
+                // I think It dies here for some reason after the 5th step????????????????????????????
+                std::cout<<"DEBUG: Reading step" << stepCounter << std::endl;
+                auto status = reader.BeginStep();
+
+                if(status != adios2::StepStatus::OK)
+                {
+                        break;
+                }
+
+                 var_udata = inIO.InquireVariable<double>("u_data");
+
+
+                if (stepCounter == 0) {
+                        std::vector<std::size_t> shape = var_udata.Shape();
+                        size_t num_data = shape[0] * shape[1];
+                        u_data.resize(num_data);
+                 }
+
+         // Get the data
+        reader.Get(var_udata, u_data);
+
+        // PerformGets if needed for deferred reading
+        reader.PerformGets();
+
+        reader.EndStep();
+        stepCounter++;
+
+
+        }
+
+        reader.Close();
+        std::cout<<"DEBUG: done reading all steps. The number of steps read is: "<< stepCounter << std::endl;
+
+
+         return u_data;
 
 }
 
@@ -70,26 +124,33 @@ int main(int argc, char** argv){
 
     std::cout << "DEBUG: Starting program" << std::endl;
         // Check command line arguments
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_bp_file> <output_bp_file> [dh]" << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <input_bp_file>  <number of steps>  input file will be the same as the output file " << std::endl;
         return 1;
     }
 
     std::string input_bp_file = argv[1];
+    int steps = std::stoi(argv[2]);
 
 
     std::cout << "DEBUG: Input BP file: " << input_bp_file << std::endl;
     std::cout << "DEBUG: Output BP file: " << input_bp_file << std::endl;
-
+    std::cout << "DEBUG: number of steps being read is: " << steps<< std::endl;
     // Define error bounds to test
     std::vector<double> error_bounds = {0.1, 0.05, 0.01, 0.005, 0.001, 0.0005};
-    std::cout << "DEBUG: Will test error bounds: ";
+    std::cout << "DEBUG: Will test error bounds: " << steps <<std::endl;
+
     for (size_t i = 0; i < error_bounds.size(); i++) {
         std::cout << error_bounds[i];
         if (i < error_bounds.size() - 1) std::cout << ", ";
     }
     std::cout << std::endl;
-        // call reader
+
+
+    // adds tsteps and convert to for loop
+    std::vector<double> u_data = reader(input_bp_file);
+    std::cout<<"DEBUG: u_data read in successfuly"<< std::endl;
+    // call reader
         // get data U_data all time steps
         // copy data
         // lossy compress data
