@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.19)
+
+project(mgard_standard)
+
+# Find dependencies
+find_package(MPI REQUIRED)
+find_package(ADIOS2 REQUIRED PATHS /blue/ranka/zhu.liangji/ADIOS2_install)
+find_package(mgard REQUIRED PATHS /blue/ranka/zhu.liangji/MGARD_install)
+
+# SZ library setup
+set(SZ_ROOT "/blue/ranka/zhu.liangji/SZ_install")
+set(SZ_INCLUDE_DIR "${SZ_ROOT}/include/sz")
+set(SZ_LIB_DIR "${SZ_ROOT}/lib64")
+set(SZ_LIB "${SZ_LIB_DIR}/libSZ.so")
+
+# Include directories for SZ
+include_directories(${SZ_INCLUDE_DIR})
+
+# Link directories for SZ
+link_directories(${SZ_LIB_DIR})
+
+# Compiler flags
+add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -Wfatal-errors -Wall -Wextra")
+
+# Add simulation executable (waveProp_twoStep)
+add_executable(waveProp_twoStep waveProp_twoStep.cpp waveEquation.tpp waveInit.tpp obstacle.tpp waveError.cpp)
+
+# Add post-processing executable (waveErrorPostProcess) using the same waveError.cpp file
+add_executable(waveErrorPostProcess waveError.cpp waveEquation.tpp waveInit.tpp obstacle.tpp)
+target_compile_definitions(waveErrorPostProcess PRIVATE POST_PROCESSING_EXEC)
+
+# Link libraries to both executables
+target_link_libraries(waveProp_twoStep adios2::adios2 MPI::MPI_C mgard::mgard ${SZ_LIB})
+target_link_libraries(waveErrorPostProcess adios2::adios2 MPI::MPI_C mgard::mgard ${SZ_LIB})
+
