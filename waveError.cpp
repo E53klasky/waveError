@@ -111,20 +111,38 @@ void compression_experiment(const std::vector<double>& u_data,
         // MGARD config
         mgard_x::Config config;
 
+        // OG size
+         std::cout << "DEBUG: Original size before compression: "
+              << (u_data.size() * sizeof(double))  << " Bytes" << std::endl;
+
+
         // Compress
+        //
+        //  WHAT IS THE VAR BEING CALLED  HERE ------------------------------------------------------------------------------------
         mgard_x::compress(2, mgard_x::data_type::Double, shape, error_bound, 1.0,
                           mgard_x::error_bound_type::ABS, u_data.data(),
                           compressed_array_cpu, compressed_size, config, false);
 
-        std::cout << "DEBUG: Compression completed. Compressed size: " << compressed_size << " bytes" << std::endl;
+        std::cout << "DEBUG: Compression completed. Compressed size: " << compressed_size/(1024.0*1024.0) << " MiB" << std::endl;
 
         // Decompress
         void* decompressed_array_cpu = NULL;
+
+        // fix print and store in a vector ------------------------------------------------------------------------------------
         mgard_x::decompress(compressed_array_cpu, compressed_size,
                             decompressed_array_cpu, config, false);
+        // something
 
-        std::cout << "DEBUG: Decompression completed" << std::endl;
+        std::cout << "DEBUG: Decompression completed " << std::endl;
 
+//      std::cout << "DEBUG: Decompressed size: "
+//              << (u_data.size() * sizeof(double)) / (1024.0 * 1024.0) << " MiB" << std::endl;
+     std::cout << "DEBUG: Decompressed size: " << (u_data.size() * sizeof(double)) << " Bytes " << std::endl;
+
+      //  here!!!!!!!!!! -----------------------------------------------------------------------------------------------
+
+
+        std::cout << "" << std::endl;
         // Copy decompressed data
         std::memcpy(decompressed_data.data(), decompressed_array_cpu,
                     u_data.size() * sizeof(double));
@@ -202,6 +220,8 @@ int main(int argc, char** argv){
     std::cout << "u_data shape: " << shape[0] << " x " << shape[1] << " Y " << std::endl;
 
     // Call compression_experiment
+    std::cout<<""<<std::endl;
+
     compression_experiment(u_data, shape);
 
     std::cout<<"DEBUG: finshed getting the difference"<<std::endl;
