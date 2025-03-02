@@ -27,7 +27,7 @@
 // and write it out
 
 
-std::vector<double> reader(const std::string& bp_file_path)
+std::vector<double> reader(const std::string& bp_file_path, int steps)
 {
 
         std::cout<<"DEBUG: Starting to read in U_data" <<std::endl;
@@ -35,8 +35,8 @@ std::vector<double> reader(const std::string& bp_file_path)
         adios2::ADIOS adios;
         auto inIO = adios.DeclareIO("Reader");
         inIO.SetEngine("BP");
-
-        adios2::Engine reader = inIO.Open(bp_file_path, adios2::Mode::Read);
+        // maybe
+        auto reader = inIO.Open(bp_file_path, adios2::Mode::Read);
 
 
         if (!reader) {
@@ -49,28 +49,25 @@ std::vector<double> reader(const std::string& bp_file_path)
         adios2::Variable<double> var_udata;
 
         int stepCounter = 0;
-        while(true)
-        {
 
-                // I think It dies here for some reason after the 5th step????????????????????????????
-                std::cout<<"DEBUG: Reading step" << stepCounter << std::endl;
-                auto status = reader.BeginStep();
+        // this should work ??????
+        for (int i = 0; i < steps; i++) {
+        std::cout << "DEBUG: Reading step " << i << std::endl;
+        auto status = reader.BeginStep();
 
-                if(status != adios2::StepStatus::OK)
-                {
-                        break;
-                }
+        if (status != adios2::StepStatus::OK) {
+                break;
+        }
 
-                 var_udata = inIO.InquireVariable<double>("u_data");
+        var_udata = inIO.InquireVariable<double>("u_data");
 
+        if (i == 0) {
+                std::vector<std::size_t> shape = var_udata.Shape();
+                size_t num_data = shape[0] * shape[1];
+                u_data.resize(num_data);
+        }
 
-                if (stepCounter == 0) {
-                        std::vector<std::size_t> shape = var_udata.Shape();
-                        size_t num_data = shape[0] * shape[1];
-                        u_data.resize(num_data);
-                 }
-
-         // Get the data
+        // Get the data
         reader.Get(var_udata, u_data);
 
         // PerformGets if needed for deferred reading
@@ -78,8 +75,6 @@ std::vector<double> reader(const std::string& bp_file_path)
 
         reader.EndStep();
         stepCounter++;
-
-
         }
 
         reader.Close();
@@ -148,7 +143,7 @@ int main(int argc, char** argv){
 
 
     // adds tsteps and convert to for loop
-    std::vector<double> u_data = reader(input_bp_file);
+    std::vector<double> u_data = reader(input_bp_file, steps);
     std::cout<<"DEBUG: u_data read in successfuly"<< std::endl;
     // call reader
         // get data U_data all time steps
@@ -162,7 +157,7 @@ int main(int argc, char** argv){
 
 
     std::cout << "DEBUG: All processing completed" << std::endl;
-
+    std::cout <<"That is very good yes" << std::endl;
 
         return 0;
 }
