@@ -1,4 +1,3 @@
-#include <iostream>
 #include <fstream>
 #include <cmath>
 #include <vector>
@@ -19,19 +18,29 @@
 //#include "/home/eklasky/local/mgard_install/include/mgard/compress_x.hpp"
 
 
-// TODO:
-// ADD DEBUG STATEMENTS LOTS OF THEM ALL THE TIME YOU ARE NOT THAT GOOD AT CODING LOTS OF THEM AND THE VAR--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// fidn out how to get file name of bp file
-// find out what time step either through the bp file or through the code ??
-// read it in u_data
-// then compress it  subtract U - U~
-// and write it out
+// potential energy
+double calc_PE(double *u, double dh, size_t Nx, size_t Ny)
+{
+    double PE = 0.0;
+    double ux, uy;
+    size_t r_curr, k;
+    for (size_t r=1; r<Nx; r++) {
+        r_curr = r * Ny;
+        for (size_t c=1; c<Ny; c++) {
+            k  = r_curr + c;
+            ux = (u[k] - u[k-Ny]) / dh;
+            uy = (u[k] - u[k-1])/dh;
+            PE += ux*ux + uy*uy;
+        }
+    }
+    return PE * 0.5;
+}
 
 
 std::tuple<std::vector<double>, int> reader(const std::string& bp_file_path, int steps)
 {
 
-        std::cout<<"DEBUG: Starting to read in U_data" <<std::endl;
+        //std::cout<<"DEBUG: Starting to read in U_data" <<std::endl;
         int dims = 0;
         adios2::ADIOS adios;
         auto inIO = adios.DeclareIO("Reader");
@@ -45,7 +54,7 @@ std::tuple<std::vector<double>, int> reader(const std::string& bp_file_path, int
           return std::make_tuple(std::vector<double>(), -1);
         }
 
-        std::cout<<"DEBUG:: Turning the reader engine on" << std::endl;
+        //std::cout<<"DEBUG:: Turning the reader engine on" << std::endl;
         std::vector<double> u_data;
         adios2::Variable<double> var_udata;
 
@@ -92,15 +101,15 @@ std::tuple<std::vector<double>, int> reader(const std::string& bp_file_path, int
 
 
 void compression_experiment(const std::vector<double>& u_data,
-                            const std::vector<std::size_t>& shape)
+                            const std::vector<std::size_t>& shape, double dh)
 {
     // Define the set of absolute error bounds
     std::vector<double> error_bounds = {0.1, 0.05, 0.01, 0.005, 0.001, 0.0005};
 
     // Storage for decompressed and diff data
     std::vector<double> decompressed_data(u_data.size());
-    std::vector<double> diff_data(u_data.size());
-
+    double* diff_data = new double[u_data.size()];
+std::vector<std::tuple<double, double, double>> results;
     // Loop over each error bound
     for (double error_bound : error_bounds) {
         std::cout << "DEBUG: Running compression/decompression with error bound: " << error_bound << std::endl;
@@ -112,46 +121,78 @@ void compression_experiment(const std::vector<double>& u_data,
         mgard_x::Config config;
 
         // OG size
-         std::cout << "DEBUG: Original size before compression: "
-              << (u_data.size() * sizeof(double))  << " Bytes" << std::endl;
+         //std::cout << "DEBUG: Original size before compression: "
+          //    << (u_data.size() * sizeof(double))  << " Bytes" << std::endl;
+
+
+
 
 
         // Compress
-        //
-        //  WHAT IS THE VAR BEING CALLED  HERE ------------------------------------------------------------------------------------
-        mgard_x::compress(2, mgard_x::data_type::Double, shape, error_bound, 1.0,
+        mgard_x::compress_status_type status = mgard_x::compress(2, mgard_x::data_type::Double, shape, error_bound, 1.0,
                           mgard_x::error_bound_type::ABS, u_data.data(),
                           compressed_array_cpu, compressed_size, config, false);
 
-        std::cout << "DEBUG: Compression completed. Compressed size: " << compressed_size/(1024.0*1024.0) << " MiB" << std::endl;
+        if (status != mgard_x::compress_status_type::Success) {
+                std::cerr << "ERROR: Compression failed with status code " << static_cast<int>(status) << std::endl;
+                return;
+        }
+
+         //std::cout << "DEBUG: u_data size: " << u_data.size() << " elements" << std::endl;
+        //std::cout << "DEBUG: u_data total bytes: " << compressed_size << " bytes" << std::endl;
+        //std::cout << "DEBUG: Memory address of u_data: " << static_cast<const void*>(u_data.data()) << std::endl;
+
 
         // Decompress
         void* decompressed_array_cpu = NULL;
 
-        // fix print and store in a vector ------------------------------------------------------------------------------------
+
+
+
+
         mgard_x::decompress(compressed_array_cpu, compressed_size,
                             decompressed_array_cpu, config, false);
-        // something
 
-        std::cout << "DEBUG: Decompression completed " << std::endl;
 
-//      std::cout << "DEBUG: Decompressed size: "
-//              << (u_data.size() * sizeof(double)) / (1024.0 * 1024.0) << " MiB" << std::endl;
-     std::cout << "DEBUG: Decompressed size: " << (u_data.size() * sizeof(double)) << " Bytes " << std::endl;
+       // std::cout << "DEBUG: Decompression completed " << std::endl;
+        //std::cout << "DEBUG: Decompressed data memory address: " << static_cast<void*>(decompressed_array_cpu) << std::endl;
+
+        //std::cout << "DEBUG: Decompressed size: "
+       //       << (u_data.size() * sizeof(double)) / (1024.0 * 1024.0) << " MiB" << std::endl;
+     //std::cout << "DEBUG: Decompressed size: " << (u_data.size() * sizeof(double)) << " Bytes " << std::endl;
 
       //  here!!!!!!!!!! -----------------------------------------------------------------------------------------------
 
 
-        std::cout << "" << std::endl;
+        //std::cout << "" << std::endl;
         // Copy decompressed data
+
+
         std::memcpy(decompressed_data.data(), decompressed_array_cpu,
                     u_data.size() * sizeof(double));
 
+
         // Compute the difference (u - u')
+
+        // Compute the difference (u - u')
+       // std::cout << "DEBUG: Computing difference between original and decompressed data" << std::endl;
         for (size_t i = 0; i < u_data.size(); i++) {
             diff_data[i] = u_data[i] - decompressed_data[i];
         }
 
+        double PE = calc_PE(diff_data, dh, shape[0], shape[1]);
+        double sqrt_PE = std::sqrt(PE);
+        double ratio = error_bound / sqrt_PE;
+
+
+        std::cout << "DEBUG: PE = " << PE << ", sqrt(PE) = " << sqrt_PE << ", eb/sqrt(PE) = " << ratio << std::endl;
+        std::cout << "\n" << std::endl;
+        // Store results
+
+
+        results.emplace_back(error_bound, sqrt_PE, ratio);
+
+        //delete[] diff_data;
         // Free memory
         if (compressed_array_cpu) free(compressed_array_cpu);
         if (decompressed_array_cpu) free(decompressed_array_cpu);
@@ -159,22 +200,12 @@ void compression_experiment(const std::vector<double>& u_data,
         // Compute and print potential energy
         //double potential_energy = calc_PE(diff_data, shape);
         //std::cout << "DEBUG: PE for error bound " << error_bound << " = " << potential_energy << std::endl;
+
     }
+    delete[] diff_data;
 }
 
 
-void uncompression()
-{
-        // I will uncompress u_data here
-
-}
-
-void calU_data_Error()
-{
-        double error = 0.0;
-        // I will calculate the U-U~ here and right out here
-        // error call wrighter here
-}
 
 
 
@@ -183,18 +214,20 @@ int main(int argc, char** argv){
 
     std::cout << "DEBUG: Starting program" << std::endl;
         // Check command line arguments
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <input_bp_file>  <number of steps>  input file will be the same as the output file " << std::endl;
+    if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " <input_bp_file>  <number of steps>  <dh>  input file will be the same as the output file " << std::endl;
         return 1;
     }
 
     std::string input_bp_file = argv[1];
     int steps = std::stoi(argv[2]);
+    double dh = std::stod(argv[3]);
 
 
     std::cout << "DEBUG: Input BP file: " << input_bp_file << std::endl;
     std::cout << "DEBUG: Output BP file: " << input_bp_file << std::endl;
     std::cout << "DEBUG: number of steps being read is: " << steps<< std::endl;
+    std::cout << "DEBUG: dh is " <<dh <<std::endl;
     // Define error bounds to test
     std::vector<double> error_bounds = {0.1, 0.05, 0.01, 0.005, 0.001, 0.0005};
     std::cout << "DEBUG: Will test error bounds: " << steps <<std::endl;
@@ -222,23 +255,17 @@ int main(int argc, char** argv){
     // Call compression_experiment
     std::cout<<""<<std::endl;
 
-    compression_experiment(u_data, shape);
+    compression_experiment(u_data, shape, dh);
 
     std::cout<<"DEBUG: finshed getting the difference"<<std::endl;
 
-        // get data U_data all time steps
-        // copy data
-        // lossy compress data
-        // subtract data
-        //
-        // uncompress data
+
         // write out diff
         // write out uncompress_U_data
 
 
-    std::cout << "DEBUG: All processing completed" << std::endl;
-    std::cout <<"That is very good yes" << std::endl;
+    std::cout << "All processing completed" << std::endl;
+    //std::cout <<"That is very good yes" << std::endl;
 
         return 0;
 }
-#endif
